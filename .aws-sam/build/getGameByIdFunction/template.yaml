@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  escape-room-builder-backend
+
+Transform:
+- AWS::Serverless-2016-10-31
+Globals:
+  Api:
+    Cors:
+      AllowOrigin: "'*'"
+      AllowMethods: "'OPTIONS,GET,POST,PUT,DELETE'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+
+Resources:
+  getAllGamesFunctionToTableConnector:
+    Type: AWS::Serverless::Connector
+    Properties:
+      Source:
+        Id: getAllGamesFunction
+      Destination:
+        Id: GamesTable
+      Permissions:
+        - Read
+
+  getGameByIdFunctionToTableConnector:
+    Type: AWS::Serverless::Connector
+    Properties:
+      Source:
+        Id: getGameByIdFunction
+      Destination:
+        Id: GamesTable
+      Permissions:
+        - Read
+
+  putGameFunctionToTableConnector:
+    Type: AWS::Serverless::Connector
+    Properties:
+      Source:
+        Id: putGameFunction
+      Destination:
+        Id: GamesTable
+      Permissions:
+        - Write
+  
+  deleteGameFunctionToTableConnector:
+    Type: AWS::Serverless::Connector
+    Properties:
+      Source:
+        Id: deleteGameFunction
+      Destination:
+        Id: GamesTable
+      Permissions:
+        - Write
+
+  # Each Lambda function is defined by properties:
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+
+  # This is a Lambda function config associated with the source code: get-all-items.js
+  getAllGamesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/get_all_games.getAllGamesHandler
+      Runtime: python3.10
+      MemorySize: 128
+      Timeout: 100
+      Description: HTTP get method to get all games from the DynamoDB table.
+      Environment:
+        Variables:
+          GAMES_TABLE: !Ref GamesTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /
+            Method: GET
+
+  getGameByIdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/get_game_by_id.getGameByIdHandler
+      Runtime: python3.10
+      MemorySize: 128
+      Timeout: 100
+      Description: HTTP get method to get one game by id from the DynamoDB table.
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          GAMES_TABLE: !Ref GamesTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /{id}
+            Method: GET
+  # Each Lambda function is defined by properties:
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+
+# This is a Lambda function config associated with the source code: delete-item.js
+  deleteGameFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/delete_game.deleteGameHandler
+      Runtime: python3.10
+      MemorySize: 128
+      Timeout: 100
+      Description: HTTP delete method to delete one item from the DynamoDB table.
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          GAMES_TABLE: !Ref GamesTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /{id}
+            Method: DELETE
+
+# Put
+  putGameFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/put_game.putGameHandler
+      Runtime: python3.10
+      MemorySize: 128
+      Timeout: 100
+      Description: HTTP put method to put one item into the DynamoDB table.
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          GAMES_TABLE: !Ref GamesTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /
+            Method: POST
+
+  # DynamoDB table to store item: {id: &lt;ID&gt;, name: &lt;NAME&gt;}
+  GamesTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+Outputs:
+  WebEndpoint:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
